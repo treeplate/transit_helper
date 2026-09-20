@@ -1,17 +1,10 @@
 # transit_helper
 
-A new Flutter project.
+An app that uses GTFS data to let you plan a public transit journey, and track where you should be along that journey right now.
 
-## Getting Started
+## Known issues
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- Currently, only one transit agency is supported at a time, so you can't make a journey including multiple. This agency is currently hard-coded.
+- This can't load any GTFS zip file that doesn't have a suitable CORS policy.
+- This has only been tested with VTA so far, and currently relies on the GTFS+ extension of directions.txt.
+- It takes a while to load stop_times.txt.

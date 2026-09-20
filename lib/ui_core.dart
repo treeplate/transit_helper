@@ -16,9 +16,10 @@ class _ContinuousBuilderState extends State<ContinuousBuilder>
   late final Timer ticker;
   @override
   void initState() {
-    ticker =Timer.periodic(Duration(milliseconds: 100), (t) => setState(() {
-      
-    }));
+    ticker = Timer.periodic(
+      Duration(milliseconds: 100),
+      (t) => setState(() {}),
+    );
     super.initState();
   }
 
