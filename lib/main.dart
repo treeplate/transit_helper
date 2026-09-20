@@ -12,9 +12,6 @@ void main() {
   String mode = uri.queryParameters['mode'] ?? 'itinerary';
   if (mode == 'itinerary') {
     String? encodedJourney = uri.queryParameters['journey'];
-    if (1 + 1 == 2) {
-      encodedJourney = '3983693_687-1887~3979243_1593-1594'; // for testing
-    }
     if (encodedJourney == null) {
       runApp(const ItineraryCreator());
       return;
@@ -61,7 +58,7 @@ class _ItineraryRendererState extends State<ItineraryRenderer> {
       darkTheme: ThemeData.dark(),
       home: Scaffold(
         body: journey == null
-            ? CircularProgressIndicator()
+            ? Text('Loading...')
             : Column(
                 children: [
                   for (Leg leg in journey!.legs)
@@ -192,19 +189,6 @@ class _ItineraryRendererState extends State<ItineraryRenderer> {
                           ),
                         );
                         if (ready) {
-                          /*
-                          controller!.drawCircle(
-                            CircleOSM(
-                              key: currentTime.toIso8601String(),
-                              radius: 10,
-                              color: Colors.black,
-                              strokeWidth: 1,
-                              centerPoint: GeoPoint(
-                                latitude: latitude,
-                                longitude: longitude,
-                              ),
-                            ),
-                          );*/
                           controller!.moveTo(
                             GeoPoint(latitude: latitude, longitude: longitude),
                           );
@@ -539,7 +523,7 @@ class _ItineraryCreatorState extends State<ItineraryCreator> {
                   SelectableText(legs.map((e) => e.encode()).join('~')),
                 ],
               )
-            : CircularProgressIndicator(),
+            : Text('Loading...'),
       ),
     );
   }

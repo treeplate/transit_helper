@@ -172,18 +172,42 @@ class GTFSDatasetWrapper {
           .toList(),
     );
     print('loaded directions');
-    List<StopTime> rawStopTimes = (await dataset.stopTimes.listResource());
-    print('loaded stop times');
+    Stopwatch stopwatch = Stopwatch();
+    stopwatch.start();
+    List<List<String>> rawStopTimes = (await utf8.decoder
+        .bind(
+          (await dataset.getSource())
+              .singleWhere((e) => e.name == 'stop_times.txt')
+              .stream(),
+        )
+        .transform(csv.decoder)
+        .map((e) => e.cast<String>())
+        .toList());
+    print('loaded stop times: ${stopwatch.elapsed}');
+    stopwatch.reset();
     stopTimesByTrip = {};
-    for (StopTime stopTime in rawStopTimes) {
-      (stopTimesByTrip[stopTime.tripId] ??= []).add(stopTime);
-    }
-    for (List<StopTime> trip in stopTimesByTrip.values) {
-      trip.sort((a, b) => a.stopSequence.compareTo(b.stopSequence));
-    }
-    print('saved stop times by trip');
     stopTimesByRouteDirectionService = {};
-    for (StopTime stopTime in rawStopTimes) {
+    for (List<String> rawStopTime in rawStopTimes.skip(1)) {
+      StopTime stopTime = StopTime(
+        tripId: rawStopTime[0],
+        arrivalTime: Time.parse(rawStopTime[1]),
+        departureTime: Time.parse(rawStopTime[2]),
+        stopId: rawStopTime[3],
+        locationGroupId: null,
+        locationId: null,
+        stopSequence: int.parse(rawStopTime[4]),
+        stopHeadsign: rawStopTime[5],
+        startPickupDropOffWindow: null,
+        endPickupDropOffWindow: null,
+        pickupType: PickupType.forId(int.parse(rawStopTime[6])),
+        dropOffType: DropOffType.forId(int.parse(rawStopTime[7])),
+        continuousPickup: null,
+        continuousDropOff: null,
+        shapeDistTraveled: double.tryParse(rawStopTime[8]),
+        timepoint: Timepoint.forId(int.parse(rawStopTime[9])),
+        pickupBookingRuleId: null,
+        dropOffBookingRuleId: null,
+      );
       (stopTimesByRouteDirectionService[(
                 routeID: trips[stopTime.tripId]!.routeId,
                 directionID: trips[stopTime.tripId]!.directionId!,
@@ -191,8 +215,12 @@ class GTFSDatasetWrapper {
               )] ??=
               [])
           .add(stopTime);
+      (stopTimesByTrip[stopTime.tripId] ??= []).add(stopTime);
     }
-    print('saved stop times by route+direction+service');
+    for (List<StopTime> trip in stopTimesByTrip.values) {
+      trip.sort((a, b) => a.stopSequence.compareTo(b.stopSequence));
+    }
+    print('saved stop times: ${stopwatch.elapsed}');
   }
 
   List<AStop> getStopsForRoute(
