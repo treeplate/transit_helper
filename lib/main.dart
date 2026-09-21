@@ -16,7 +16,12 @@ void main() {
       runApp(const ItineraryCreator());
       return;
     }
-    runApp(ItineraryRenderer(encodedJourney: encodedJourney));
+    runApp(
+      ItineraryRenderer(
+        encodedJourney: encodedJourney,
+        showMap: uri.queryParameters['showMap'] == '1',
+      ),
+    );
   } else {
     runApp(const Placeholder());
     return;
@@ -24,8 +29,9 @@ void main() {
 }
 
 class ItineraryRenderer extends StatefulWidget {
-  const new({required this.encodedJourney, super.key});
+  const new({required this.encodedJourney, required this.showMap, super.key});
   final String encodedJourney;
+  final bool showMap;
   @override
   State<ItineraryRenderer> createState() => _ItineraryRendererState();
 }
@@ -61,156 +67,167 @@ class _ItineraryRendererState extends State<ItineraryRenderer> {
             ? Text('Loading...')
             : Column(
                 children: [
-                  Text('ETA: ${gtfs.stopTimesByTrip[journey!.legs.last.trip.id]!
-                              .singleWhere((e) => e.stopId == journey!.legs.last.end.id)
-                              .arrivalTime!.toTimeString()} at ${journey!.legs.last.end.name}'),
-                  Expanded(
-                    child: ContinuousBuilder(
-                      builder: (context) {
-                        DateTime currentTime = DateTime.now().copyWith(
-                          minute: DateTime.now().minute,
-                        );
-                        Trip? currentTrip;
-                        AStop? currentLegStart;
-                        bool beforeStart = false;
-                        Leg? lastLeg;
-                        for (Leg leg in journey!.legs) {
-                          DateTime startTime = gtfs
-                              .stopTimesByTrip[leg.trip.id]!
-                              .singleWhere((e) => e.stopId == leg.start.id)
-                              .departureTime!
-                              .relativeToDateTime(currentTime);
-                          DateTime endTime = gtfs.stopTimesByTrip[leg.trip.id]!
-                              .singleWhere((e) => e.stopId == leg.end.id)
-                              .arrivalTime!
-                              .relativeToDateTime(currentTime);
-                          if (currentTime.isBefore(startTime)) {
-                            if (lastLeg == null) {
-                              beforeStart = true;
-                            } else {
+                  Text(
+                    'ETA: ${gtfs.stopTimesByTrip[journey!.legs.last.trip.id]!.singleWhere((e) => e.stopId == journey!.legs.last.end.id).arrivalTime!.toTimeString()} at ${journey!.legs.last.end.name}',
+                  ),
+                  if (widget.showMap)
+                    Expanded(
+                      child: ContinuousBuilder(
+                        builder: (context) {
+                          DateTime currentTime = DateTime.now().copyWith(
+                            minute: DateTime.now().minute,
+                          );
+                          Trip? currentTrip;
+                          AStop? currentLegStart;
+                          bool beforeStart = false;
+                          Leg? lastLeg;
+                          for (Leg leg in journey!.legs) {
+                            DateTime startTime = gtfs
+                                .stopTimesByTrip[leg.trip.id]!
+                                .singleWhere((e) => e.stopId == leg.start.id)
+                                .departureTime!
+                                .relativeToDateTime(currentTime);
+                            DateTime endTime = gtfs
+                                .stopTimesByTrip[leg.trip.id]!
+                                .singleWhere((e) => e.stopId == leg.end.id)
+                                .arrivalTime!
+                                .relativeToDateTime(currentTime);
+                            if (currentTime.isBefore(startTime)) {
+                              if (lastLeg == null) {
+                                beforeStart = true;
+                              } else {
+                                currentTrip = leg.trip;
+                                currentLegStart = leg.start;
+                              }
+                              break;
+                            }
+                            if (currentTime.isBefore(endTime)) {
                               currentTrip = leg.trip;
                               currentLegStart = leg.start;
+                              break;
                             }
-                            break;
+                            lastLeg = leg;
                           }
-                          if (currentTime.isBefore(endTime)) {
-                            currentTrip = leg.trip;
-                            currentLegStart = leg.start;
-                            break;
-                          }
-                          lastLeg = leg;
-                        }
-                        StopTime? lastStop;
-                        StopTime? nextStop;
-                        double? t;
-                        if (currentTrip != null) {
-                          for (StopTime stop
-                              in gtfs.stopTimesByTrip[currentTrip.id]!.skip(
-                                gtfs.stopTimesByTrip[currentTrip.id]!
-                                    .indexWhere(
-                                      (e) => e.stopId == currentLegStart!.id,
-                                    ),
-                              )) {
-                            DateTime arrivalTime = stop.arrivalTime!
-                                .relativeToDateTime(currentTime);
-                            if (lastStop == null &&
-                                currentTime.isBefore(
-                                  stop.departureTime!.relativeToDateTime(
-                                    currentTime,
-                                  ),
+                          StopTime? lastStop;
+                          StopTime? nextStop;
+                          double? t;
+                          if (currentTrip != null) {
+                            for (StopTime stop
+                                in gtfs.stopTimesByTrip[currentTrip.id]!.skip(
+                                  gtfs.stopTimesByTrip[currentTrip.id]!
+                                      .indexWhere(
+                                        (e) => e.stopId == currentLegStart!.id,
+                                      ),
                                 )) {
-                              lastStop = gtfs.stopTimesByTrip[lastLeg!.trip.id]!
-                                  .singleWhere(
-                                    (e) => e.stopId == lastLeg!.end.id,
-                                  );
-                              nextStop = stop;
-                              t =
-                                  (currentTime
-                                      .difference(
-                                        lastStop.arrivalTime!
-                                            .relativeToDateTime(currentTime),
-                                      )
-                                      .inMilliseconds) /
-                                  stop.departureTime!
-                                      .relativeToDateTime(currentTime)
-                                      .difference(
-                                        lastStop.arrivalTime!
-                                            .relativeToDateTime(currentTime),
-                                      )
-                                      .inMilliseconds;
-                              break;
+                              DateTime arrivalTime = stop.arrivalTime!
+                                  .relativeToDateTime(currentTime);
+                              if (lastStop == null &&
+                                  currentTime.isBefore(
+                                    stop.departureTime!.relativeToDateTime(
+                                      currentTime,
+                                    ),
+                                  )) {
+                                lastStop = gtfs
+                                    .stopTimesByTrip[lastLeg!.trip.id]!
+                                    .singleWhere(
+                                      (e) => e.stopId == lastLeg!.end.id,
+                                    );
+                                nextStop = stop;
+                                t =
+                                    (currentTime
+                                        .difference(
+                                          lastStop.arrivalTime!
+                                              .relativeToDateTime(currentTime),
+                                        )
+                                        .inMilliseconds) /
+                                    stop.departureTime!
+                                        .relativeToDateTime(currentTime)
+                                        .difference(
+                                          lastStop.arrivalTime!
+                                              .relativeToDateTime(currentTime),
+                                        )
+                                        .inMilliseconds;
+                                break;
+                              }
+                              if (currentTime.isBefore(arrivalTime)) {
+                                lastStop ??= stop;
+                                nextStop = stop;
+                                t =
+                                    (currentTime
+                                        .difference(
+                                          lastStop.departureTime!
+                                              .relativeToDateTime(currentTime),
+                                        )
+                                        .inMilliseconds) /
+                                    arrivalTime
+                                        .difference(
+                                          lastStop.departureTime!
+                                              .relativeToDateTime(currentTime),
+                                        )
+                                        .inMilliseconds;
+                                break;
+                              }
+                              lastStop = stop;
                             }
-                            if (currentTime.isBefore(arrivalTime)) {
-                              lastStop ??= stop;
-                              nextStop = stop;
-                              t =
-                                  (currentTime
-                                      .difference(
-                                        lastStop.departureTime!
-                                            .relativeToDateTime(currentTime),
-                                      )
-                                      .inMilliseconds) /
-                                  arrivalTime
-                                      .difference(
-                                        lastStop.departureTime!
-                                            .relativeToDateTime(currentTime),
-                                      )
-                                      .inMilliseconds;
-                              break;
-                            }
-                            lastStop = stop;
                           }
-                        }
-                        double latitude = t == null
-                            ? beforeStart
-                                  ? journey!.legs.first.start.latitude!
-                                  : journey!.legs.last.end.latitude!
-                            : lerpDouble(
-                                gtfs.stops[lastStop!.stopId]!.latitude,
-                                gtfs.stops[nextStop!.stopId]!.latitude,
-                                t,
-                              )!;
-                        double longitude = t == null
-                            ? beforeStart
-                                  ? journey!.legs.first.start.longitude!
-                                  : journey!.legs.last.end.longitude!
-                            : lerpDouble(
-                                gtfs.stops[lastStop!.stopId]!.longitude,
-                                gtfs.stops[nextStop!.stopId]!.longitude,
-                                t,
-                              )!;
-                        /*
+                          double latitude = t == null
+                              ? beforeStart
+                                    ? journey!.legs.first.start.latitude!
+                                    : journey!.legs.last.end.latitude!
+                              : lerpDouble(
+                                  gtfs.stops[lastStop!.stopId]!.latitude,
+                                  gtfs.stops[nextStop!.stopId]!.latitude,
+                                  t,
+                                )!;
+                          double longitude = t == null
+                              ? beforeStart
+                                    ? journey!.legs.first.start.longitude!
+                                    : journey!.legs.last.end.longitude!
+                              : lerpDouble(
+                                  gtfs.stops[lastStop!.stopId]!.longitude,
+                                  gtfs.stops[nextStop!.stopId]!.longitude,
+                                  t,
+                                )!;
+                          /*
                         );*/
-                        controller ??= MapController(
-                          initPosition: GeoPoint(
-                            latitude: latitude,
-                            longitude: longitude,
-                          ),
-                        );
-                        if (ready) {
-                          controller!.moveTo(
-                            GeoPoint(latitude: latitude, longitude: longitude),
+                          controller ??= MapController(
+                            initPosition: GeoPoint(
+                              latitude: latitude,
+                              longitude: longitude,
+                            ),
                           );
-                        }
-                        return Stack(
-                          children: [
-                            OSMFlutter(
-                              controller: controller!,
-                              onMapIsReady: (p0) {
-                                ready = true;
-                              },
-                              osmOption: OSMOption(
-                                zoomOption: ZoomOption(initZoom: 13),
+                          if (ready) {
+                            controller!.moveTo(
+                              GeoPoint(
+                                latitude: latitude,
+                                longitude: longitude,
                               ),
-                            ),
-                            Center(
-                              child: Icon(Icons.person, color: Colors.black),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
+                            );
+                          }
+                          return Stack(
+                            children: [
+                              OSMFlutter(
+                                controller: controller!,
+                                onMapIsReady: (p0) {
+                                  ready = true;
+                                },
+                                osmOption: OSMOption(
+                                  zoomOption: ZoomOption(initZoom: 13),
+                                ),
+                              ),
+                              Center(
+                                child: Icon(Icons.person, color: Colors.black),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    )
+                  else
+                    for (Leg leg in journey!.legs)
+                      Text(
+                        '${leg.start.name} at ${gtfs.stopTimesByTrip[leg.trip.id]!.singleWhere((e) => e.stopId == leg.start.id).departureTime!.toTimeString()} -> ${leg.end.name} at ${gtfs.stopTimesByTrip[leg.trip.id]!.singleWhere((e) => e.stopId == leg.end.id).arrivalTime!.toTimeString()}',
+                      ),
                 ],
               ),
       ),
@@ -298,7 +315,20 @@ class _ItineraryCreatorState extends State<ItineraryCreator> {
                                         (e) => DropdownMenuItem(
                                           value: e,
                                           child: Text(
-                                            gtfs.directions[(directionID: e, routeID: leg.route!.id)]?.directionName ?? gtfs.directions[(directionID: e, routeID: leg.route!.id)]?.direction.name ?? 'unknown direction',
+                                            gtfs
+                                                    .directions[(
+                                                      directionID: e,
+                                                      routeID: leg.route!.id,
+                                                    )]
+                                                    ?.directionName ??
+                                                gtfs
+                                                    .directions[(
+                                                      directionID: e,
+                                                      routeID: leg.route!.id,
+                                                    )]
+                                                    ?.direction
+                                                    .name ??
+                                                'unknown direction',
                                           ),
                                         ),
                                       )
@@ -434,41 +464,65 @@ class _ItineraryCreatorState extends State<ItineraryCreator> {
                                 DropdownButton(
                                   value: leg.trip,
                                   hint: Text('Time'),
-                                  items: (gtfs.trips.values
-                                      .where(
-                                        (e) =>
-                                            e.routeId == leg.route!.id &&
-                                            leg.direction == e.directionId &&
-                                            leg.service!.id == e.serviceId &&
-                                            gtfs.stopTimesByTrip[e.id]!.any(
-                                              (e) => e.stopId == leg.start!.id,
+                                  items:
+                                      (gtfs.trips.values
+                                              .where(
+                                                (e) =>
+                                                    e.routeId ==
+                                                        leg.route!.id &&
+                                                    leg.direction ==
+                                                        e.directionId &&
+                                                    leg.service!.id ==
+                                                        e.serviceId &&
+                                                    gtfs.stopTimesByTrip[e.id]!
+                                                        .any(
+                                                          (e) =>
+                                                              e.stopId ==
+                                                              leg.start!.id,
+                                                        ),
+                                              )
+                                              .toList()
+                                            ..sort(
+                                              (a, b) => gtfs
+                                                  .stopTimesByTrip[a.id]!
+                                                  .singleWhere(
+                                                    (e) =>
+                                                        e.stopId ==
+                                                        leg.start!.id,
+                                                  )
+                                                  .departureTime!
+                                                  .relativeToDateTime(
+                                                    DateTime.now(),
+                                                  )
+                                                  .compareTo(
+                                                    gtfs.stopTimesByTrip[b.id]!
+                                                        .singleWhere(
+                                                          (e) =>
+                                                              e.stopId ==
+                                                              leg.start!.id,
+                                                        )
+                                                        .departureTime!
+                                                        .relativeToDateTime(
+                                                          DateTime.now(),
+                                                        ),
+                                                  ),
+                                            ))
+                                          .map(
+                                            (e) => DropdownMenuItem(
+                                              value: e,
+                                              child: Text(
+                                                gtfs.stopTimesByTrip[e.id]!
+                                                    .singleWhere(
+                                                      (e) =>
+                                                          e.stopId ==
+                                                          leg.start!.id,
+                                                    )
+                                                    .departureTime!
+                                                    .toTimeString(),
+                                              ),
                                             ),
-                                      ).toList()..sort((a,b) => gtfs.stopTimesByTrip[a.id]!
-                                                .singleWhere(
-                                                  (e) =>
-                                                      e.stopId == leg.start!.id,
-                                                )
-                                                .departureTime!.relativeToDateTime(DateTime.now()).compareTo(gtfs.stopTimesByTrip[b.id]!
-                                                .singleWhere(
-                                                  (e) =>
-                                                      e.stopId == leg.start!.id,
-                                                )
-                                                .departureTime!.relativeToDateTime(DateTime.now()))))
-                                      .map(
-                                        (e) => DropdownMenuItem(
-                                          value: e,
-                                          child: Text(
-                                            gtfs.stopTimesByTrip[e.id]!
-                                                .singleWhere(
-                                                  (e) =>
-                                                      e.stopId == leg.start!.id,
-                                                )
-                                                .departureTime!
-                                                .toTimeString(),
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
+                                          )
+                                          .toList(),
                                   onChanged: (value) {
                                     if (leg.trip != value) {
                                       setState(() {
