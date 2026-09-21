@@ -61,10 +61,9 @@ class _ItineraryRendererState extends State<ItineraryRenderer> {
             ? Text('Loading...')
             : Column(
                 children: [
-                  for (Leg leg in journey!.legs)
-                    Text(
-                      '${leg.trip.routeId} ${leg.trip.tripHeadsign} from ${leg.start.name} at ${gtfs.stopTimesByTrip[leg.trip.id]!.singleWhere((e) => e.stopId == leg.start.id).departureTime!.toTimeString()} to ${leg.end.name} at ${gtfs.stopTimesByTrip[leg.trip.id]!.singleWhere((e) => e.stopId == leg.end.id).arrivalTime!.toTimeString()}',
-                    ),
+                  Text('ETA: ${gtfs.stopTimesByTrip[journey!.legs.last.trip.id]!
+                              .singleWhere((e) => e.stopId == journey!.legs.last.end.id)
+                              .arrivalTime!.toTimeString()} at ${journey!.legs.last.end.name}'),
                   Expanded(
                     child: ContinuousBuilder(
                       builder: (context) {
@@ -346,9 +345,16 @@ class _ItineraryCreatorState extends State<ItineraryCreator> {
                                     if (leg.service != value) {
                                       setState(() {
                                         leg.service = value;
-                                        leg.start = null;
+                                        List<AStop> stops = gtfs
+                                            .getStopsForRoute(
+                                              leg.route!,
+                                              leg.direction!,
+                                              leg.service!,
+                                            );
+                                        if (!stops.contains(leg.start)) {
+                                          leg.start = null;
+                                        }
                                         leg.trip = null;
-                                        leg.end = null;
                                       });
                                     }
                                   },
