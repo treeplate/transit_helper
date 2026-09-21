@@ -270,7 +270,7 @@ class _ItineraryCreatorState extends State<ItineraryCreator> {
                                       (e) => DropdownMenuItem(
                                         value: e,
                                         child: Text(
-                                          '${e.shortName}: ${e.longName}',
+                                          '${e.shortName}: ${e.longName ?? 'no long name'}',
                                         ),
                                       ),
                                     )
@@ -298,7 +298,7 @@ class _ItineraryCreatorState extends State<ItineraryCreator> {
                                         (e) => DropdownMenuItem(
                                           value: e,
                                           child: Text(
-                                            '${gtfs.directions[(directionID: e, routeID: leg.route!.id)]!.directionName}',
+                                            gtfs.directions[(directionID: e, routeID: leg.route!.id)]?.directionName ?? gtfs.directions[(directionID: e, routeID: leg.route!.id)]?.direction.name ?? 'unknown direction',
                                           ),
                                         ),
                                       )
@@ -434,7 +434,7 @@ class _ItineraryCreatorState extends State<ItineraryCreator> {
                                 DropdownButton(
                                   value: leg.trip,
                                   hint: Text('Time'),
-                                  items: gtfs.trips.values
+                                  items: (gtfs.trips.values
                                       .where(
                                         (e) =>
                                             e.routeId == leg.route!.id &&
@@ -443,7 +443,17 @@ class _ItineraryCreatorState extends State<ItineraryCreator> {
                                             gtfs.stopTimesByTrip[e.id]!.any(
                                               (e) => e.stopId == leg.start!.id,
                                             ),
-                                      )
+                                      ).toList()..sort((a,b) => gtfs.stopTimesByTrip[a.id]!
+                                                .singleWhere(
+                                                  (e) =>
+                                                      e.stopId == leg.start!.id,
+                                                )
+                                                .departureTime!.relativeToDateTime(DateTime.now()).compareTo(gtfs.stopTimesByTrip[b.id]!
+                                                .singleWhere(
+                                                  (e) =>
+                                                      e.stopId == leg.start!.id,
+                                                )
+                                                .departureTime!.relativeToDateTime(DateTime.now()))))
                                       .map(
                                         (e) => DropdownMenuItem(
                                           value: e,

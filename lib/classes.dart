@@ -162,9 +162,21 @@ class GTFSDatasetWrapper {
               DirectionEntry(
                 routeID: entry[0] as String,
                 directionID: DirectionId.forId(int.parse(entry[1])),
-                direction: Direction.values.singleWhere(
-                  (e) => e.name == entry[2],
-                ),
+                direction:
+                    Direction.values
+                        .where((e) => e.name == entry[2])
+                        .singleOrNull ??
+                    () {
+                      print('invalid direction ${entry[2]}');
+                      Direction? nocaps = Direction.values
+                          .where(
+                            (e) =>
+                                e.name.toLowerCase() ==
+                                (entry[2] as String).toLowerCase(),
+                          )
+                          .singleOrNull;
+                      return nocaps ?? Direction.aLoop;
+                    }(),
                 directionName: entry.length < 4 ? null : entry[3],
               ),
             );
@@ -190,21 +202,39 @@ class GTFSDatasetWrapper {
     for (List<String> rawStopTime in rawStopTimes.skip(1)) {
       StopTime stopTime = StopTime(
         tripId: rawStopTime[0],
-        arrivalTime: Time.parse(rawStopTime[1]),
-        departureTime: Time.parse(rawStopTime[2]),
-        stopId: rawStopTime[3],
+        arrivalTime: rawStopTimes.first[1] == 'arrival_time'
+            ? Time.parse(rawStopTime[1])
+            : Time.parse(rawStopTime[2]),
+        departureTime: rawStopTimes.first[2] == 'departure_time'
+            ? Time.parse(rawStopTime[2])
+            : Time.parse(rawStopTime[3]),
+        stopId: rawStopTimes.first[1] == 'stop_id'
+            ? rawStopTime[1]
+            : rawStopTime[3],
         locationGroupId: null,
         locationId: null,
         stopSequence: int.parse(rawStopTime[4]),
         stopHeadsign: rawStopTime[5],
         startPickupDropOffWindow: null,
         endPickupDropOffWindow: null,
-        pickupType: PickupType.forId(int.parse(rawStopTime[6])),
-        dropOffType: DropOffType.forId(int.parse(rawStopTime[7])),
+        pickupType:
+            rawStopTime[6] == '' || !rawStopTimes.first.contains('pickup_type')
+            ? null
+            : PickupType.forId(int.parse(rawStopTime[6])),
+        dropOffType:
+            rawStopTime[7] == '' || !rawStopTimes.first.contains('dropoff_type')
+            ? null
+            : DropOffType.forId(int.parse(rawStopTime[7])),
         continuousPickup: null,
         continuousDropOff: null,
-        shapeDistTraveled: double.tryParse(rawStopTime[8]),
-        timepoint: Timepoint.forId(int.parse(rawStopTime[9])),
+        shapeDistTraveled: rawStopTimes.first.contains('pickup_type')
+            ? double.tryParse(rawStopTime[8])
+            : double.tryParse(rawStopTime[6]),
+        timepoint: rawStopTimes.first.contains('pickup_type')
+            ? rawStopTime.length > 9
+                  ? Timepoint.forId(int.parse(rawStopTime[9]))
+                  : null
+            : Timepoint.forId(int.parse(rawStopTime[7])),
         pickupBookingRuleId: null,
         dropOffBookingRuleId: null,
       );
