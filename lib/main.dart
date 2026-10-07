@@ -20,6 +20,9 @@ void main() {
       ItineraryRenderer(
         encodedJourney: encodedJourney,
         showMap: uri.queryParameters['showMap'] == '1',
+        home: uri.queryParameters['home'] == null
+            ? null
+            : GeoPoint.fromString(uri.queryParameters['home']!),
       ),
     );
   } else {
@@ -29,9 +32,15 @@ void main() {
 }
 
 class ItineraryRenderer extends StatefulWidget {
-  const new({required this.encodedJourney, required this.showMap, super.key});
+  const new({
+    required this.encodedJourney,
+    required this.showMap,
+    required this.home,
+    super.key,
+  });
   final String encodedJourney;
   final bool showMap;
+  final GeoPoint? home;
   @override
   State<ItineraryRenderer> createState() => _ItineraryRendererState();
 }
@@ -213,6 +222,14 @@ class _ItineraryRendererState extends State<ItineraryRenderer> {
                                 },
                                 osmOption: OSMOption(
                                   zoomOption: ZoomOption(initZoom: 13),
+                                  staticPoints: [
+                                    if (widget.home != null)
+                                      StaticPositionGeoPoint(
+                                        'home',
+                                        MarkerIcon(icon: Icon(Icons.home, color: Colors.black,)),
+                                        [widget.home!],
+                                      ),
+                                  ],
                                 ),
                               ),
                               Center(
@@ -244,6 +261,7 @@ class ItineraryCreator extends StatefulWidget {
 
 class _ItineraryCreatorState extends State<ItineraryCreator> {
   List<MutableLeg> legs = [MutableLeg()];
+  String? home;
   GTFSDatasetWrapper gtfs = GTFSDatasetWrapper();
   bool gtfsLoaded = false;
 
@@ -271,6 +289,18 @@ class _ItineraryCreatorState extends State<ItineraryCreator> {
         body: gtfsLoaded
             ? Column(
                 children: [
+                  SizedBox(
+                    width: 500,
+                    height: 50,
+                    child: TextField(
+                      onChanged: (value) {
+                        setState(() {
+                          home = value.isEmpty ? null : value;
+                        });
+                      },
+                      decoration: InputDecoration(hintText: 'Home'),
+                    ),
+                  ),
                   for (MutableLeg leg in legs)
                     Expanded(
                       child: Center(
@@ -590,7 +620,9 @@ class _ItineraryCreatorState extends State<ItineraryCreator> {
                     },
                     icon: Icon(Icons.add),
                   ),
-                  SelectableText(legs.map((e) => e.encode()).join('~')),
+                  SelectableText(
+                    'http://treeplate.damowmow.com/transit2/?journey=${legs.map((e) => e.encode()).join('~')}${home == null ? '' : '&home=$home'}&showMap=1',
+                  ),
                 ],
               )
             : Text('Loading...'),
