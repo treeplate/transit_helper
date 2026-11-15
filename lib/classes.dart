@@ -80,6 +80,8 @@ class Service {
   });
 }
 
+enum DatasetID { vta, caltrain, bart }
+
 class GTFSDatasetWrapper {
   late final Map<String, Trip> trips;
   late final Map<String, AStop> stops;
@@ -94,24 +96,26 @@ class GTFSDatasetWrapper {
   >
   stopTimesByRouteDirectionService;
 
-  Future<void> load(GtfsDataset dataset) async {
+  static Future<GTFSDatasetWrapper> load(GtfsDataset dataset) async {
+    // TODO: all the places where we hardcode indices (possibly just directions?) should instead put them in variables based on row 1
+    GTFSDatasetWrapper result = GTFSDatasetWrapper();
     await dataset.pipe(tempDir: '/tmp');
-    trips = Map.fromEntries(
+    result.trips = Map.fromEntries(
       (await dataset.trips.listResource()).map((e) => MapEntry(e.id, e)),
     );
     print('loaded trips');
-    stops = Map.fromEntries(
+    result.stops = Map.fromEntries(
       (await dataset.stops.listResource()).map((e) => MapEntry(e.id, e)),
     );
     print('loaded stops');
-    routes = Map.fromEntries(
+    result.routes = Map.fromEntries(
       (await dataset.routes.listResource()).map((e) => MapEntry(e.id, e)),
     );
     print('loaded routes');
-    calendar = {};
+    result.calendar = {};
     for (RegularService service
         in await dataset.calendar.regularCalendar!.listResource()) {
-      calendar[service.id] = Service(
+      result.calendar[service.id] = Service(
         id: service.id,
         startDate: service.startDate,
         endDate: service.endDate,
@@ -131,7 +135,7 @@ class GTFSDatasetWrapper {
     for (OccasionalService service
         in await dataset.calendar.occasionalCalendar!.listResource()) {
       (switch (service.exceptionType) {
-        ExceptionType.added => (calendar[service.id] ??= Service(
+        ExceptionType.added => (result.calendar[service.id] ??= Service(
           id: service.id,
           startDate: Date(1, 1, 1),
           endDate: Date(1, 1, 1),
@@ -139,11 +143,11 @@ class GTFSDatasetWrapper {
           addedExceptions: [],
           removedExceptions: [],
         )).addedExceptions,
-        ExceptionType.removed => calendar[service.id]!.removedExceptions,
+        ExceptionType.removed => result.calendar[service.id]!.removedExceptions,
       }).add(service.date);
     }
     print('loaded calendar');
-    directions = Map.fromEntries(
+    result.directions = Map.fromEntries(
       (await utf8.decoder
               .bind(
                 (await dataset.getSource())
@@ -197,60 +201,64 @@ class GTFSDatasetWrapper {
         .toList());
     print('loaded stop times: ${stopwatch.elapsed}');
     stopwatch.reset();
-    stopTimesByTrip = {};
-    stopTimesByRouteDirectionService = {};
+    result.stopTimesByTrip = {};
+    result.stopTimesByRouteDirectionService = {};
+    int tripIDColumn = rawStopTimes[0].indexOf('trip_id');
+    int sequenceColumn = rawStopTimes[0].indexOf('stop_sequence');
+    int stopIDColumn = rawStopTimes[0].indexOf('stop_id');
+    int arrivalTimeColumn = rawStopTimes[0].indexOf('arrival_time');
+    int departureTimeColumn = rawStopTimes[0].indexOf('departure_time');
+    int stopHeadsignColumn = rawStopTimes[0].indexOf('stop_headsign');
+    int pickupTypeColumn = rawStopTimes[0].indexOf('pickup_type');
+    int dropoffTypeColumn = rawStopTimes[0].indexOf('drop_off_type');
+    int shapeDistTraveledColumn = rawStopTimes[0].indexOf(
+      'shape_dist_traveled',
+    );
+    int timepointColumn = rawStopTimes[0].indexOf('timepoint');
+
     for (List<String> rawStopTime in rawStopTimes.skip(1)) {
       StopTime stopTime = StopTime(
-        tripId: rawStopTime[0],
-        arrivalTime: rawStopTimes.first[1] == 'arrival_time'
-            ? Time.parse(rawStopTime[1])
-            : Time.parse(rawStopTime[2]),
-        departureTime: rawStopTimes.first[2] == 'departure_time'
-            ? Time.parse(rawStopTime[2])
-            : Time.parse(rawStopTime[3]),
-        stopId: rawStopTimes.first[1] == 'stop_id'
-            ? rawStopTime[1]
-            : rawStopTime[3],
+        tripId: rawStopTime[tripIDColumn],
+        arrivalTime: Time.parse(rawStopTime[arrivalTimeColumn]),
+        departureTime: Time.parse(rawStopTime[departureTimeColumn]),
+        stopId: rawStopTime[stopIDColumn],
         locationGroupId: null,
         locationId: null,
-        stopSequence: int.parse(rawStopTime[4]),
-        stopHeadsign: rawStopTime[5],
+        stopSequence: int.parse(rawStopTime[sequenceColumn]),
+        stopHeadsign: rawStopTime[stopHeadsignColumn],
         startPickupDropOffWindow: null,
         endPickupDropOffWindow: null,
         pickupType:
-            rawStopTime[6] == '' || !rawStopTimes.first.contains('pickup_type')
+            pickupTypeColumn == -1 || rawStopTime[pickupTypeColumn] == ''
             ? null
-            : PickupType.forId(int.parse(rawStopTime[6])),
+            : PickupType.forId(int.parse(rawStopTime[pickupTypeColumn])),
         dropOffType:
-            rawStopTime[7] == '' || !rawStopTimes.first.contains('dropoff_type')
+            dropoffTypeColumn == -1 || rawStopTime[dropoffTypeColumn] == ''
             ? null
-            : DropOffType.forId(int.parse(rawStopTime[7])),
+            : DropOffType.forId(int.parse(rawStopTime[dropoffTypeColumn])),
         continuousPickup: null,
         continuousDropOff: null,
-        shapeDistTraveled: rawStopTimes.first.contains('pickup_type')
-            ? double.tryParse(rawStopTime[8])
-            : double.tryParse(rawStopTime[6]),
-        timepoint: rawStopTimes.first.contains('pickup_type')
-            ? rawStopTime.length > 9
-                  ? Timepoint.forId(int.parse(rawStopTime[9]))
-                  : null
-            : Timepoint.forId(int.parse(rawStopTime[7])),
+        shapeDistTraveled: double.tryParse(
+          rawStopTime[shapeDistTraveledColumn],
+        ),
+        timepoint: timepointColumn == -1 ? null : Timepoint.forId(int.parse(rawStopTime[timepointColumn])),
         pickupBookingRuleId: null,
         dropOffBookingRuleId: null,
       );
-      (stopTimesByRouteDirectionService[(
-                routeID: trips[stopTime.tripId]!.routeId,
-                directionID: trips[stopTime.tripId]!.directionId!,
-                serviceID: trips[stopTime.tripId]!.serviceId,
+      (result.stopTimesByRouteDirectionService[(
+                routeID: result.trips[stopTime.tripId]!.routeId,
+                directionID: result.trips[stopTime.tripId]!.directionId!,
+                serviceID: result.trips[stopTime.tripId]!.serviceId,
               )] ??=
               [])
           .add(stopTime);
-      (stopTimesByTrip[stopTime.tripId] ??= []).add(stopTime);
+      (result.stopTimesByTrip[stopTime.tripId] ??= []).add(stopTime);
     }
-    for (List<StopTime> trip in stopTimesByTrip.values) {
+    for (List<StopTime> trip in result.stopTimesByTrip.values) {
       trip.sort((a, b) => a.stopSequence.compareTo(b.stopSequence));
     }
     print('saved stop times: ${stopwatch.elapsed}');
+    return result;
   }
 
   List<AStop> getStopsForRoute(
@@ -281,7 +289,10 @@ class Journey {
   final List<Leg> legs;
 
   new({required this.legs});
-  factory Journey.parse(String encodedJourney, GTFSDatasetWrapper gtfs) {
+  factory Journey.parse(
+    String encodedJourney,
+    Map<DatasetID, GTFSDatasetWrapper> gtfs,
+  ) {
     return Journey(
       legs: encodedJourney.split('~').map((e) => Leg.parse(e, gtfs)).toList(),
     );
@@ -289,6 +300,7 @@ class Journey {
 }
 
 class MutableLeg {
+  DatasetID? dataset;
   Route? route;
   DirectionId? direction;
   Service? service;
@@ -296,25 +308,51 @@ class MutableLeg {
   Trip? trip;
   AStop? end;
 
-  String encode() => '${trip?.id}_${start?.id}-${end?.id}';
+  String encode() =>
+      '${dataset?.name}<UDSC>${trip?.id}<UDSC><UDSC>${start?.id}<DASH>${end?.id}'
+          .replaceAll('-', 'HYPHEN')
+          .replaceAll('_', 'UNDERSCORE')
+          .replaceAll('<UDSC>', '_')
+          .replaceAll('<DASH>', '-');
 }
 
 class Leg {
   final Trip trip;
   final AStop start;
   final AStop end;
+  final DatasetID dataset;
 
-  new({required this.trip, required this.start, required this.end});
+  new({
+    required this.dataset,
+    required this.trip,
+    required this.start,
+    required this.end,
+  });
 
-  factory Leg.parse(String encodedLeg, GTFSDatasetWrapper gtfs) {
+  factory Leg.parse(
+    String encodedLeg,
+    Map<DatasetID, GTFSDatasetWrapper> gtfs,
+  ) {
+    DatasetID ds = DatasetID.values.singleWhere(
+      (e) => e.name == encodedLeg.substring(0, encodedLeg.indexOf('_')),
+    );
     return Leg(
-      trip: gtfs.trips[encodedLeg.substring(0, encodedLeg.indexOf('_'))]!,
+      dataset: ds,
+      trip:
+          gtfs[ds]!.trips[encodedLeg
+              .substring(encodedLeg.indexOf('_') + 1, encodedLeg.indexOf('__'))
+              .replaceAll('HYPHEN', '-')
+              .replaceAll('UNDERSCORE', '_')]!,
       start:
-          gtfs.stops[encodedLeg.substring(
-            encodedLeg.indexOf('_') + 1,
-            encodedLeg.indexOf('-'),
-          )]!,
-      end: gtfs.stops[encodedLeg.substring(encodedLeg.indexOf('-') + 1)]!,
+          gtfs[ds]!.stops[encodedLeg
+              .substring(encodedLeg.indexOf('__') + 2, encodedLeg.indexOf('-'))
+              .replaceAll('HYPHEN', '-')
+              .replaceAll('UNDERSCORE', '_')]!,
+      end:
+          gtfs[ds]!.stops[encodedLeg
+              .substring(encodedLeg.indexOf('-') + 1)
+              .replaceAll('HYPHEN', '-')
+              .replaceAll('UNDERSCORE', '_')]!,
     );
   }
 }
